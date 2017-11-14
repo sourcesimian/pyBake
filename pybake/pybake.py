@@ -1,13 +1,13 @@
-import glob
+import inspect
+
 import base64
 import json
 import os
 import os.path
-import sys
 import zlib
-import hashlib
-from datetime import datetime
 from textwrap import dedent
+
+import dictimporter
 
 import textwrap
 from moduletree import ModuleTree
@@ -17,13 +17,16 @@ src_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class PyBake(object):
-    def __init__(self, header, footer):
+    def __init__(self, header, footer, width=80, suffix='##', python='python2'):
         self._header = header
         self._footer = footer
+        self._width = width
+        self._suffix = suffix
+        self._python = python
         self._module_tree = ModuleTree()
 
-    def load_modules(self, path):
-        self._module_tree.load(path, types=('.py',))
+    def load_module(self, module):
+        self._module_tree.load(module, types=('.py',))
 
     def write_dist(self,  path, user_data=None):
         path = os.path.expanduser(path)
@@ -39,32 +42,30 @@ class PyBake(object):
         self._dump_footer(fh)
 
     def _dump_header(self, fh):
-        fh.write('#!/usr/bin/env python2\n')
-        fh.write(self.suffix(self._header, '##', 78))
+        fh.write('#!/usr/bin/env %s\n' % self._python)
+        fh.write(self._s(self._header))
 
     def _read_loader_script(self):
-        import dictimporter
-        import inspect
-
         with open(inspect.getsourcefile(dictimporter), 'rt') as fh:
             return fh.read()
 
     def _dump_footer(self, fh):
-        fh.write(self.suffix(self._footer, '##', 78))
+        fh.write(self._s(self._footer))
         
     def _dump_blob(self, fh, user_data):
         data = (user_data,
                 (self._get_exec(), self._read_loader_script(), self._module_tree.get_tree()))
 
-        fh.write("b='''")
-        fh.write(self.b64e(zlib.compress(json.dumps(data, sort_keys=True, separators=(',', ':')), 9)))
+        fh.write("e = '''")
+        fh.write(self.b64e(zlib.compress(json.dumps(data, sort_keys=True, separators=(',', ':')), 9),
+                           self._width, 7))
         fh.write("'''\n")
 
     def _dump_loader(self, fh):
-        fh.write(self.suffix(self.dedent('''\
-        import base64, json, zlib                                                     ##
-        data, e = json.loads(zlib.decompress(base64.decodestring(b))); exec(e[0])     ##
-        '''), '##', 78))
+        fh.write(self._s(self.dedent('''\
+        import base64, json, zlib
+        user, e = json.loads(zlib.decompress(base64.b64decode(e))); exec(e[0])
+        ''')))
 
     def _get_exec(self):
         return dedent('''\
@@ -73,7 +74,14 @@ class PyBake(object):
         with tempfile.NamedTemporaryFile() as t:
             t.write(e[1])
             t.flush()
-            imp.load_source('i', t.name).DictImport(e[2]).load()
+            imp.load_source('__pybake', t.name).DictImport(e[2]).load()
+        del e
+        del t
+        del tempfile
+        del imp
+        del base64
+        del json
+        del zlib
         ''')
 
     @staticmethod
@@ -82,6 +90,9 @@ class PyBake(object):
         if offset:
             ret = ' ' * offset + ret.replace('\n', '\n' + ' ' * offset).rstrip(' ')
         return ret
+
+    def _s(self, content):
+        return self.suffix(content, self._suffix, self._width - len(self._suffix))
 
     @staticmethod
     def suffix(content, suffix, offset=78):
@@ -96,8 +107,8 @@ class PyBake(object):
         return ret
 
     @staticmethod
-    def b64e(str, line=80, first=75):
-        first = first or line
+    def b64e(str, line, first):
+        first = line - first
         out = base64.encodestring(str).replace('\n', '')
         lines = []
         a = 0
@@ -107,4 +118,3 @@ class PyBake(object):
             lines.append(out[a: min(b, m)])
             a, b = b, b + line
         return '\n'.join(lines)
-
