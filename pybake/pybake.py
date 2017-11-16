@@ -5,7 +5,6 @@ import json
 import os
 import os.path
 import zlib
-from textwrap import dedent
 
 import dictimporter
 
@@ -40,6 +39,7 @@ class PyBake(object):
         self._dump_blob(fh, user_data)
         self._dump_loader(fh)
         self._dump_footer(fh)
+        self._dump_eof(fh)
 
     def _dump_header(self, fh):
         fh.write('#!/usr/bin/env %s\n' % self._python)
@@ -52,6 +52,9 @@ class PyBake(object):
     def _dump_footer(self, fh):
         fh.write(self._s(self._footer))
         
+    def _dump_eof(self, fh):
+        fh.write('#' * (self._width - 3 - len(self._suffix)) + 'END' + self._suffix + '\n')
+
     def _dump_blob(self, fh, user_data):
         data = (user_data,
                 (self._get_exec(), self._read_loader_script(), self._module_tree.get_tree()))
@@ -68,20 +71,22 @@ class PyBake(object):
         ''')))
 
     def _get_exec(self):
-        return dedent('''\
-        import tempfile
+        return self.dedent('''\
+        del base64, json, zlib
+
         import imp
+        import tempfile
+        import sys
+
+        sys.modules['pybake'] = imp.new_module('pybake')
+
         with tempfile.NamedTemporaryFile() as t:
             t.write(e[1])
             t.flush()
-            imp.load_source('__pybake', t.name).DictImport(e[2]).load()
-        del e
-        del t
-        del tempfile
-        del imp
-        del base64
-        del json
-        del zlib
+            imp.load_source('pybake.dictimporter', t.name).DictImport(e[2]).load()
+
+        del e, t
+        del imp, tempfile, sys
         ''')
 
     @staticmethod
