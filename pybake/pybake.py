@@ -25,7 +25,7 @@ class PyBake(object):
         self._module_tree = ModuleTree()
 
     def load_module(self, module):
-        self._module_tree.load(module, types=('.py',))
+        self._module_tree.load(module)
 
     def write_dist(self,  path, user_data=None):
         path = os.path.expanduser(path)
