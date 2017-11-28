@@ -24,8 +24,13 @@ class PyBake(object):
         self._python = python
         self._module_tree = ModuleTree()
 
-    def load_module(self, module):
-        self._module_tree.load(module)
+    def load_module(self, module, base=()):
+        self._module_tree.load(module, base)
+
+    def add_file(self, path, fh):
+        if not isinstance(path, (list, tuple)):
+            raise TypeError(repr(path))
+        self._module_tree.add_file(path, fh)
 
     def write_dist(self,  path, user_data=None):
         path = os.path.expanduser(path)
@@ -83,8 +88,9 @@ class PyBake(object):
         with tempfile.NamedTemporaryFile() as t:
             t.write(e[1])
             t.flush()
-            imp.load_source('pybake.dictimporter', t.name).DictImport(e[2]).load()
+            m = imp.load_source('pybake.dictimporter', t.name)
 
+        m.DictImport(e[2]).load()
         del e, t
         del imp, tempfile, sys
         ''')

@@ -7,7 +7,7 @@ class ModuleTree(object):
     def __init__(self):
         self._d = {}
 
-    def load(self, module):
+    def load(self, module, base=()):
         package = ()
 
         if isinstance(module, types.ModuleType):
@@ -31,14 +31,14 @@ class ModuleTree(object):
         if os.path.basename(filepath) == '__init__.py':
             if not package:
                 package = (os.path.basename(basedir),)
-            self._load_tree(package, basedir)
+            self._load_tree(base + package, basedir)
         else:
-            self._load_single(package, filepath)
+            self._load_single(base + package, filepath)
 
     def _load_single(self, package, filepath):
         filename = os.path.basename(filepath)
         with open(filepath, 'rb') as fh:
-            self._add(package + (filename,), fh.read())
+            self.add_file(package + (filename,), fh)
 
     def _load_tree(self, package, basedir):
         ignored_types = ('.pyc',)
@@ -53,15 +53,18 @@ class ModuleTree(object):
             for filename in files:
                 if not filename.endswith(ignored_types):
                     with open(os.path.join(dir, filename), 'rb') as fh:
-                        self._add(package + pre + (filename,), fh.read())
+                        self.add_file(package + pre + (filename,), fh)
 
-    def _add(self, path, value):
+    def add_file(self, path, fh, base=()):
         node = self._d
-        for key in path[:-1]:
+        for key in base + tuple(path[:-1]):
             if key not in node:
                 node[key] = {}
             node = node[key]
+        value = fh.read()
         if path[-1] in node:
+            if node[path[-1]] == value:
+                return
             raise KeyError('Path already exists: %s' % (path,))
         node[path[-1]] = value
 

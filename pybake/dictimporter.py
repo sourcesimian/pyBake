@@ -1,7 +1,7 @@
+import errno
 import imp
 import os
 import sys
-import pkg_resources
 
 
 class DictImport(object):
@@ -11,8 +11,8 @@ class DictImport(object):
     def __init__(self, dict_tree, unload=True):
         self._unload = unload
         self._loaded_modules = set()
-        self._full_path_map = {}
-        self._init_full_path_map(dict_tree)
+        self._base_dir = '/pybake'
+        self._fs = DictFileSystemReader(self._base_dir, dict_tree)
 
     def __enter__(self):
         self.load()
@@ -22,28 +22,11 @@ class DictImport(object):
         self.unload()
 
     def load(self):
-        self._hook = self._new_loader
-        sys.path_hooks.append(self._hook)
-        for full_path in self._gen_full_paths():
-            sys.path.insert(0, full_path)
-
-        # Enable package resource loading from this loader context:
-        # When pkg_resources is imported it scans the current `sys.path` and stows it away inside
-        # its `working_set`. There is an `add_entry()` however there is no `remove_entry()`.
-        # Thus for the purposes of this context class it works out cleaner to simply reload the
-        # module on __enter__ and __exit__
-        reload(pkg_resources)
-        pkg_resources.register_finder(*self._register_finder())
+        sys.meta_path.append(self)
 
     def unload(self):
-        for import_path in self._gen_full_paths():
-            try:
-                sys.path.remove(import_path)
-            except ValueError:
-                pass
-
         try:
-            sys.path_hooks.remove(self._hook)
+            sys.meta_path.remove(self)
         except ValueError:
             pass
 
@@ -54,74 +37,33 @@ class DictImport(object):
                 except KeyError:
                     pass
 
-        reload(pkg_resources)
-
     def loaded_modules(self):
         return list(self._loaded_modules)
-
-    def _new_loader(self, path_entry):
-        return ModuleImportLoader(self, path_entry)
-
-    def _register_finder(self):
-        return ModuleImportLoader, pkg_resources.find_on_path
 
     def _add_module(self, fullname):
         self._loaded_modules.add(fullname)
 
-    def _init_full_path_map(self, blob_tree):
-        def walk(node, path=()):
-            for key in node:
-                if isinstance(node[key], dict):
-                    for ret in walk(node[key], path + (key,)):
-                        yield ret
-                else:
-                    yield path + (key,)
-
-        def read_blob(path):
-            node = blob_tree
-            for key in path[:-1]:
-                node = node[key]
-            return node[path[-1]]
-
-        for path in walk(blob_tree):
-            full_path = os.path.join(sys.argv[0], *path)
-            self._full_path_map[full_path] = read_blob(path)
-
-    def _gen_full_paths(self):
-        for full_path in self._full_path_map:
-            yield full_path
-
     def _full_path(self, fullname):
-        def full_paths():
-            for suffix in ('.py', '/__init__.py'):
-                yield os.path.join(sys.argv[0], *fullname.split('.')) + suffix
-
-        for full_path in full_paths():
-            if full_path in self._full_path_map:
-                return full_path
+        dpath = tuple(fullname.split('.'))
+        for tpath in (dpath + ('__init__.py',), dpath[:-1] + (dpath[-1] + '.py',)):
+            try:
+                if self._fs.isfile(tpath):
+                    return os.path.join(self._base_dir, *tpath)
+            except IOError:
+                pass
         return None
 
     def _read_file(self, full_path):
-        return self._full_path_map[full_path]
-
-
-class ModuleImportLoader(object):
-    def __init__(self, context, path_entry):
-        for import_path in context._gen_full_paths():
-            if import_path == path_entry or path_entry.startswith(import_path):
-                break
-        else:
-            raise ImportError
-        self._context = context
-        self._path_entry = path_entry
+        tpath = self._fs.tpath(full_path)
+        return self._fs.read(tpath)
 
     def find_module(self, fullname, path=None):
-        if self._context._full_path(fullname):
+        if self._full_path(fullname):
             return self
         return None
 
     def load_module(self, fullname):
-        full_path = self._context._full_path(fullname)
+        full_path = self._full_path(fullname)
 
         mod = imp.new_module(fullname)
         mod.__file__ = full_path
@@ -130,10 +72,10 @@ class ModuleImportLoader(object):
         if full_path.endswith('/__init__.py'):
             mod.__package__ = fullname
             path_suffixes = [fullname.split('.'), '']
-            mod.__path__ = [os.path.join(self._path_entry, *p) for p in path_suffixes]
+            mod.__path__ = [os.path.join(self._base_dir, *p) for p in path_suffixes]
         else:
             mod.__package__ = '.'.join(fullname.split('.')[:-1])
-        source = self._context._read_file(full_path)
+        source = self._read_file(full_path)
         try:
             exec compile(source, full_path, 'exec') in mod.__dict__
         except ImportError:
@@ -146,9 +88,93 @@ class ModuleImportLoader(object):
                                                                  exc_info[1],
                                                                  fullname), exc_info[2]
         sys.modules.setdefault(fullname, mod)
-        self._context._add_module(fullname)
+        self._add_module(fullname)
         return mod
 
     def get_source(self, fullname):
-        full_path = self._context._full_path(fullname)
-        return self._context._read_file(full_path)
+        full_path = self._full_path(fullname)
+        return self._read_file(full_path)
+
+    def is_package(self, fullname):
+        print '!!!! is_package',
+
+    def get_code(self, fullname):
+        print '!!!! get_code',
+
+    def get_data(self, path):
+        print '!!!! get_data',
+
+    def get_filename(self, fullname):
+        print '!!!! get_filename',
+
+
+class DictFileSystemReader(object):
+    def __init__(self, base_dir, dict_tree):
+        self._base_dir = base_dir
+        self._dict_tree = dict_tree
+        self._stat = os.stat(sys.argv[0])
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def tpath(self, path):
+        try:
+            if isinstance(path, basestring) and path.startswith(self._base_dir):
+                subpath = path[len(self._base_dir):].strip(os.sep)
+                if not subpath:
+                    return ()
+                ret = tuple(subpath.split(os.sep))
+                return ret
+        except AttributeError:
+            pass
+        return None
+
+    def _node(self, tpath):
+        try:
+            node = self._dict_tree
+            for key in tpath:
+                node = node[key]
+            return node
+        except KeyError:
+            pass
+        raise IOError(errno.ENOENT, "No such file or directory", '%s/%s' % (self._base_dir, os.sep.join(tpath)))
+
+    def listdir(self, tpath):
+        return self._node(tpath).keys()
+
+    def read(self, tpath):
+        return self._node(tpath)
+
+    def isfile(self, tpath):
+        return isinstance(self._node(tpath), basestring)
+
+    def isdir(self, tpath):
+        return isinstance(self._node(tpath), dict)
+
+    def stat(self, tpath):
+        node = self._node(tpath)
+
+        from collections import namedtuple
+        stat_result = namedtuple('stat_result', ['st_mode', 'st_ino', 'st_dev', 'st_nlink',
+                                                 'st_uid', 'st_gid', 'st_size', 'st_atime',
+                                                 'st_mtime', 'st_ctime'])
+        st_mode = self._stat.st_mode
+        st_ino = self._stat.st_ino
+        st_dev = self._stat.st_dev
+        st_nlink = self._stat.st_nlink
+        st_uid = self._stat.st_uid
+        st_gid = self._stat.st_gid
+        st_size = len(node)
+        st_mtime, st_atime, st_ctime = self._stat.st_mtime, self._stat.st_atime, self._stat.st_ctime
+
+        return stat_result(st_mode, st_ino, st_dev, st_nlink,
+                           st_uid, st_gid, st_size, st_atime,
+                           st_mtime, st_ctime)
+
+
