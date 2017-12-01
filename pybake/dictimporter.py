@@ -8,10 +8,10 @@ class DictImport(object):
     """
     Module finder/loader based on PEP 302 to load Python modules from a filesystem location
     """
-    def __init__(self, dict_tree, unload=True):
+    def __init__(self, base_dir, dict_tree, unload=True):
         self._unload = unload
         self._loaded_modules = set()
-        self._base_dir = '/pybake'
+        self._base_dir = base_dir
         self._fs = DictFileSystemReader(self._base_dir, dict_tree)
 
     def __enter__(self):
@@ -65,7 +65,7 @@ class DictImport(object):
     def load_module(self, fullname):
         full_path = self._full_path(fullname)
 
-        mod = imp.new_module(fullname)
+        mod = sys.modules.setdefault(fullname, imp.new_module(fullname))
         mod.__file__ = full_path
         mod.__loader__ = self
 
@@ -87,7 +87,6 @@ class DictImport(object):
             raise exc_info[0], "%s: %s, while importing '%s'" % (orig_exc_type.__name__,
                                                                  exc_info[1],
                                                                  fullname), exc_info[2]
-        sys.modules.setdefault(fullname, mod)
         self._add_module(fullname)
         return mod
 

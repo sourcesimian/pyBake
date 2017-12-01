@@ -64,35 +64,28 @@ class PyBake(object):
         data = (user_data,
                 (self._get_exec(), self._read_loader_script(), self._module_tree.get_tree()))
 
-        fh.write("e = '''")
+        fh.write("_='''")
         fh.write(self.b64e(zlib.compress(json.dumps(data, sort_keys=True, separators=(',', ':')), 9),
-                           self._width, 7))
+                           self._width, 5))
         fh.write("'''\n")
 
     def _dump_loader(self, fh):
         fh.write(self._s(self.dedent('''\
-        import base64, json, zlib
-        user, e = json.loads(zlib.decompress(base64.b64decode(e))); exec(e[0])
+        import base64, json, zlib;
+        user, _ = json.loads(zlib.decompress(base64.b64decode(_))); exec(_[0])
         ''')))
 
     def _get_exec(self):
         return self.dedent('''\
-        del base64, json, zlib
+        import imp, sys
 
-        import imp
-        import tempfile
-        import sys
+        sys.modules.setdefault('pybake', imp.new_module('pybake'))
+        mod = sys.modules.setdefault('pybake.dictimporter', imp.new_module('pybake.dictimporter'))
+        exec compile(_[1], sys.argv[0] + '/pybake/dictimporter.py', 'exec') in mod.__dict__
 
-        sys.modules['pybake'] = imp.new_module('pybake')
+        mod.DictImport(sys.argv[0], _[2]).load()
 
-        with tempfile.NamedTemporaryFile() as t:
-            t.write(e[1])
-            t.flush()
-            m = imp.load_source('pybake.dictimporter', t.name)
-
-        m.DictImport(e[2]).load()
-        del e, t
-        del imp, tempfile, sys
+        del base64, json, zlib, _, imp, sys, mod
         ''')
 
     @staticmethod
