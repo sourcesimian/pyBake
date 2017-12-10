@@ -6,10 +6,8 @@ import os
 import os.path
 import zlib
 
-import dictimporter
-
 import textwrap
-from moduletree import ModuleTree
+from dictfilesystembuilder import DictFileSystemBuilder
 
 src_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,15 +20,15 @@ class PyBake(object):
         self._width = width
         self._suffix = suffix
         self._python = python
-        self._module_tree = ModuleTree()
+        self._dict_fs = DictFileSystemBuilder()
 
     def load_module(self, module, base=()):
-        self._module_tree.load(module, base)
+        self._dict_fs.load(module, base)
 
     def add_file(self, path, fh):
         if not isinstance(path, (list, tuple)):
             raise TypeError(repr(path))
-        self._module_tree.add_file(path, fh)
+        self._dict_fs.add_file(path, fh)
 
     def write_dist(self,  path, user_data=None):
         path = os.path.expanduser(path)
@@ -42,7 +40,6 @@ class PyBake(object):
     def _dump_dist(self, fh, user_data):
         self._dump_header(fh)
         self._dump_blob(fh, user_data)
-        self._dump_loader(fh)
         self._dump_footer(fh)
         self._dump_eof(fh)
 
@@ -50,9 +47,12 @@ class PyBake(object):
         fh.write('#!/usr/bin/env %s\n' % self._python)
         fh.write(self._s(self._header))
 
-    def _read_loader_script(self):
-        with open(inspect.getsourcefile(dictimporter), 'rt') as fh:
-            return fh.read()
+    def _get_pybake_modules(self):
+        d = []
+        for name in ('abstractimporter', 'dictfilesystem', 'filesysteminterceptor', 'dictfilesysteminterceptor'):
+            with open(os.path.join(os.path.dirname(__file__), name + '.py')) as fh:
+                d.append((name, fh.read()))
+        return d
 
     def _dump_footer(self, fh):
         fh.write(self._s(self._footer))
@@ -61,32 +61,34 @@ class PyBake(object):
         fh.write('#' * (self._width - 3 - len(self._suffix)) + 'END' + self._suffix + '\n')
 
     def _dump_blob(self, fh, user_data):
-        data = (user_data,
-                (self._get_exec(), self._read_loader_script(), self._module_tree.get_tree()))
-
+        inline, obscured = self._get_launcher()
         fh.write("_='''")
+
+        data = (
+            user_data,
+            {
+                '_': obscured,
+                'pybake': self._get_pybake_modules(),
+                'fs': self._dict_fs.get_tree()
+            }
+        )
+
         fh.write(self.b64e(zlib.compress(json.dumps(data, sort_keys=True, separators=(',', ':')), 9),
                            self._width, 5))
         fh.write("'''\n")
+        fh.write(self._s(inline))
 
-    def _dump_loader(self, fh):
-        fh.write(self._s(self.dedent('''\
-        import base64, json, zlib;
-        user, _ = json.loads(zlib.decompress(base64.b64decode(_))); exec(_[0])
-        ''')))
+    def _get_launcher(self):
+        with open(os.path.join(os.path.dirname(__file__), 'launcher.py')) as fh:
+            lines = fh.readlines()
 
-    def _get_exec(self):
-        return self.dedent('''\
-        import imp, sys
+        inline = lines.index('# -- inline cut --\n')
+        obscure = lines.index('# -- obscure cut --\n')
 
-        sys.modules.setdefault('pybake', imp.new_module('pybake'))
-        mod = sys.modules.setdefault('pybake.dictimporter', imp.new_module('pybake.dictimporter'))
-        exec compile(_[1], sys.argv[0] + '/pybake/dictimporter.py', 'exec') in mod.__dict__
-
-        mod.DictImport(sys.argv[0], _[2]).load()
-
-        del base64, json, zlib, _, imp, sys, mod
-        ''')
+        return (
+            ''.join(lines[inline + 1:obscure]),
+            ''.join(lines[obscure + 1:])
+        )
 
     @staticmethod
     def dedent(content, offset=0):
