@@ -11,7 +11,10 @@ class DictFileSystem(object):
     def tpath(self, path):
         try:
             if isinstance(path, basestring) and path.startswith(self._base_dir):
-                subpath = path[len(self._base_dir):].strip(os.sep)
+                subpath = path[len(self._base_dir):]
+                # if not subpath:
+                #     return None
+                subpath = subpath.strip(os.sep)
                 if not subpath:
                     return ()
                 ret = tuple(subpath.split(os.sep))
@@ -41,6 +44,13 @@ class DictFileSystem(object):
 
     def isdir(self, tpath):
         return isinstance(self._node(tpath), dict)
+
+    def exists(self, tpath):
+        try:
+            self._node(tpath)
+            return True
+        except IOError:
+            return False
 
     def stat(self, tpath):
         node = self._node(tpath)

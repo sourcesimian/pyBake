@@ -35,7 +35,6 @@ class PyBake(object):
         with open(path, 'wb') as fh:
             self._dump_dist(fh, user_data)
         os.chmod(path, 0o755)
-        print("Wrote: %s" % path)
 
     def _dump_dist(self, fh, user_data):
         self._dump_header(fh)
