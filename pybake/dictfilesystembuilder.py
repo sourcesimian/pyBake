@@ -55,18 +55,18 @@ class DictFileSystemBuilder(object):
                     with open(os.path.join(dir, filename), 'rb') as fh:
                         self.add_file(package + pre + (filename,), fh)
 
-    def add_file(self, path, fh, base=()):
+    def add_file(self, tpath, fh, base=()):
         node = self._d
-        for key in base + tuple(path[:-1]):
+        for key in base + tuple(tpath[:-1]):
             if key not in node:
                 node[key] = {}
             node = node[key]
         value = fh.read()
-        if path[-1] in node:
-            if node[path[-1]] == value:
+        if tpath[-1] in node:
+            if node[tpath[-1]] == value:
                 return
-            raise KeyError('Path already exists: %s' % (path,))
-        node[path[-1]] = value
+            raise KeyError('Path already exists: %s' % (tpath,))
+        node[tpath[-1]] = value
 
     def get_tree(self):
         return self._d

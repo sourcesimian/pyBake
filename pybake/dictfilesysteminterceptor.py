@@ -58,7 +58,6 @@ class DictFileSystemInterceptor(FileSystemInterceptor):
         return self._reader.isdir(tpath)
 
     def _os_path_exists(self, path):
-        print 'os.path.exists', path
         tpath = self._reader.tpath(path)
         if tpath is None:
             return self._oldhooks['os.path.exists'](path)
@@ -73,7 +72,6 @@ class DictFileSystemInterceptor(FileSystemInterceptor):
         return self._reader.listdir(tpath)
 
     def _os_stat(self, path):
-        print 'os.stat', path
         tpath = self._reader.tpath(path)
         if tpath is None:
             return self._oldhooks['os.stat'](path)

@@ -23,12 +23,15 @@ class DictFileSystem(object):
             pass
         return None
 
+    def _get_tpath(self, tpath):
+        node = self._dict_tree
+        for key in tpath:
+            node = node[key]
+        return node
+
     def _node(self, tpath):
         try:
-            node = self._dict_tree
-            for key in tpath:
-                node = node[key]
-            return node
+            return self._get_tpath(tpath)
         except KeyError:
             pass
         raise IOError(errno.ENOENT, "No such file or directory", '%s/%s' % (self._base_dir, os.sep.join(tpath)))
@@ -40,16 +43,22 @@ class DictFileSystem(object):
         return self._node(tpath)
 
     def isfile(self, tpath):
-        return isinstance(self._node(tpath), basestring)
+        try:
+            return isinstance(self._get_tpath(tpath), basestring)
+        except KeyError:
+            return False
 
     def isdir(self, tpath):
-        return isinstance(self._node(tpath), dict)
+        try:
+            return isinstance(self._get_tpath(tpath), dict)
+        except KeyError:
+            return False
 
     def exists(self, tpath):
         try:
-            self._node(tpath)
+            self._get_tpath(tpath)
             return True
-        except IOError:
+        except KeyError:
             return False
 
     def stat(self, tpath):

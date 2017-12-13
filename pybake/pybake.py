@@ -1,5 +1,3 @@
-import inspect
-
 import base64
 import json
 import os
@@ -11,6 +9,13 @@ from dictfilesystembuilder import DictFileSystemBuilder
 
 src_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+BAKED_MODULES = (
+    'abstractimporter',
+    'dictfilesystem',
+    'filesysteminterceptor',
+    'dictfilesysteminterceptor',
+    'blobserver',
+)
 
 
 class PyBake(object):
@@ -25,12 +30,15 @@ class PyBake(object):
     def load_module(self, module, base=()):
         self._dict_fs.load(module, base)
 
-    def add_file(self, path, fh):
-        if not isinstance(path, (list, tuple)):
-            raise TypeError(repr(path))
-        self._dict_fs.add_file(path, fh)
+    def add_file(self, tpath, fh):
+        if not isinstance(tpath, (list, tuple)):
+            raise TypeError(repr(tpath))
+        self._dict_fs.add_file(tpath, fh)
 
-    def write_dist(self,  path, user_data=None):
+    def write_dist(self, path, user_data=None):
+        for name in BAKED_MODULES:
+            self.load_module(os.path.join(os.path.dirname(__file__), name + '.py'), ('pybake',))
+
         path = os.path.expanduser(path)
         with open(path, 'wb') as fh:
             self._dump_dist(fh, user_data)
@@ -46,13 +54,6 @@ class PyBake(object):
         fh.write('#!/usr/bin/env %s\n' % self._python)
         fh.write(self._s(self._header))
 
-    def _get_pybake_modules(self):
-        d = []
-        for name in ('abstractimporter', 'dictfilesystem', 'filesysteminterceptor', 'dictfilesysteminterceptor'):
-            with open(os.path.join(os.path.dirname(__file__), name + '.py')) as fh:
-                d.append((name, fh.read()))
-        return d
-
     def _dump_footer(self, fh):
         fh.write(self._s(self._footer))
         
@@ -60,19 +61,11 @@ class PyBake(object):
         fh.write('#' * (self._width - 3 - len(self._suffix)) + 'END' + self._suffix + '\n')
 
     def _dump_blob(self, fh, user_data):
-        inline, obscured = self._get_launcher()
+        inline, execable = self._get_launcher()
         fh.write("_='''")
 
-        data = (
-            user_data,
-            {
-                '_': obscured,
-                'pybake': self._get_pybake_modules(),
-                'fs': self._dict_fs.get_tree()
-            }
-        )
-
-        fh.write(self.b64e(zlib.compress(json.dumps(data, sort_keys=True, separators=(',', ':')), 9),
+        blob = (execable, self._dict_fs.get_tree())
+        fh.write(self.b64e(zlib.compress(json.dumps(blob, sort_keys=True, separators=(',', ':')), 9),
                            self._width, 5))
         fh.write("'''\n")
         fh.write(self._s(inline))
