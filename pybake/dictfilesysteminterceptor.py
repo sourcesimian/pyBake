@@ -19,19 +19,7 @@ class DictFileSystemInterceptor(FileSystemInterceptor):
         ]
         super(DictFileSystemInterceptor, self).__init__(intercept_list)
         self._reader = reader
-        self._fileno_path_map = {}
-        self._path_fileno_map = {}
-
-    def _path_to_fileno(self, path):
-        try:
-            return self._path_fileno_map[path]
-        except KeyError:
-            pass
-
-        fileno = len(self._path_fileno_map) + 65536  # This is very dodgy
-        self._path_fileno_map[path] = fileno
-        self._fileno_path_map[fileno] = path
-        return fileno
+        self._fileno = FileNo()
 
     def _builtin_open(self, path, mode='r'):
         tpath = self._reader.tpath(path)
@@ -41,7 +29,7 @@ class DictFileSystemInterceptor(FileSystemInterceptor):
             raise IOError(errno.EROFS, 'Read-only file system', path)
         content = self._reader.read(tpath)
 
-        return FrozenFile(self, path, content)
+        return FrozenFile(self._fileno, path, content)
 
     def _os_path_isfile(self, path):
         tpath = self._reader.tpath(path)
@@ -80,7 +68,7 @@ class DictFileSystemInterceptor(FileSystemInterceptor):
 
     def _os_fstat(self, fileno):
         try:
-            tpath = self._reader.tpath(self._fileno_path_map[fileno])
+            tpath = self._reader.tpath(self._fileno.fileno_to_path(fileno))
             if tpath:
                 return self._reader.stat(tpath)
         except KeyError:
@@ -98,9 +86,42 @@ class DictFileSystemInterceptor(FileSystemInterceptor):
         return True
 
 
+class FileNo(object):
+    def __init__(self):
+        self._current_fileno = 65536  # This is very dodgy
+        self._fileno_path_map = {}
+        self._path_fileno_map = {}
+
+    def _next_fileno(self):
+        self._current_fileno += 1
+        return self._current_fileno
+
+    def path_to_fileno(self, path):
+        try:
+            return self._path_fileno_map[path]
+        except KeyError:
+            pass
+
+        fileno = self._next_fileno()
+        self._path_fileno_map[path] = fileno
+        self._fileno_path_map[fileno] = path
+        return fileno
+
+    def fileno_to_path(self, fileno):
+        return self._fileno_path_map[fileno]
+
+    def close_path(self, path):
+        try:
+            fileno = self._path_fileno_map[path]
+            del self._path_fileno_map[path]
+            del self._fileno_path_map[fileno]
+        except KeyError:
+            pass
+
+
 class FrozenFile(StringIO):
-    def __init__(self, ctx, path, content):
-        self._ctx = ctx
+    def __init__(self, fileno, path, content):
+        self._fileno = fileno
         self._path = path
         StringIO.__init__(self, content)
 
@@ -108,7 +129,7 @@ class FrozenFile(StringIO):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        self._fileno.close_path(self._path)
 
     def fileno(self):
-        return self._ctx._path_to_fileno(self._path)
+        return self._fileno.path_to_fileno(self._path)

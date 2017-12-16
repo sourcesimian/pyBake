@@ -49,5 +49,3 @@ class FileSystemInterceptor(object):
     def _shim(self, fullpath, *args, **kwargs):
         ret = self._oldhooks[fullpath](*args, **kwargs)
         return ret
-
-

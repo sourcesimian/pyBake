@@ -4,10 +4,10 @@ import types
 
 
 class DictFileSystemBuilder(object):
-    def __init__(self):
-        self._d = {}
+    def __init__(self, fs):
+        self._fs = fs
 
-    def load(self, module, base=()):
+    def add_module(self, module, base=()):
         package = ()
 
         if isinstance(module, types.ModuleType):
@@ -56,17 +56,4 @@ class DictFileSystemBuilder(object):
                         self.add_file(package + pre + (filename,), fh)
 
     def add_file(self, tpath, fh, base=()):
-        node = self._d
-        for key in base + tuple(tpath[:-1]):
-            if key not in node:
-                node[key] = {}
-            node = node[key]
-        value = fh.read()
-        if tpath[-1] in node:
-            if node[tpath[-1]] == value:
-                return
-            raise KeyError('Path already exists: %s' % (tpath,))
-        node[tpath[-1]] = value
-
-    def get_tree(self):
-        return self._d
+        self._fs.write(base + tpath, fh.read())

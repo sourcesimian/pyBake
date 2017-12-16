@@ -6,12 +6,19 @@ class BlobServer(object):
     def check_run(cls):
         try:
             i = sys.argv.index('--pybake-server')
-            cls().run(*sys.argv[i+1 : i+2])
         except ValueError:
-            pass
+            return
+        cls().run(*sys.argv[i + 1: i + 2])
+        exit(0)
 
-    def run(self, port=None):
-        port = int(port or 8080)
+    def run(self, address='8080'):
+        if ':' in address:
+            bind, port = address.split(':', 1)
+        else:
+            bind = 'localhost'
+            port = address
+        port = int(port)
+
         from SimpleHTTPServer import SimpleHTTPRequestHandler
         from BaseHTTPServer import HTTPServer
 
@@ -25,11 +32,9 @@ class BlobServer(object):
                 ret = sys.argv[0] + path
                 return ret
 
-        httpd = Server(('', port), Handler)
-        sys.stdout.write('Serving PyBake file system on http://localhost:%d/ hit CTRL+C to exit\n' % port)
+        httpd = Server((bind, port), Handler)
+        sys.stdout.write('Serving PyBake file system on http://%s:%d/ hit CTRL+C to exit\n' % (bind, port))
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
-            print
-            exit(0)
-
+            sys.stdout.write('\n')

@@ -1,3 +1,7 @@
 *.pyc
 .idea/
 .cache/
+reports/
+dist/
+pybake.egg-info/
+virtualenv/

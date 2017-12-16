@@ -12,7 +12,6 @@ class AbstractImporter(object):
         self._loaded_modules = set()
         self._base_dir = base_dir
         self._fs = fs
-            #
 
     def __enter__(self):
         self.install()
@@ -81,12 +80,14 @@ class AbstractImporter(object):
         except ImportError:
             exc_info = sys.exc_info()
             raise exc_info[0], "%s, while importing '%s'" % (exc_info[1], fullname), exc_info[2]
+            # raise exc_info[0]  from ex
         except Exception:
             orig_exc_type, exc, tb = sys.exc_info()
             exc_info = (ImportError, exc, tb)
             raise exc_info[0], "%s: %s, while importing '%s'" % (orig_exc_type.__name__,
                                                                  exc_info[1],
                                                                  fullname), exc_info[2]
+            # raise exc_info[0] from ex
         self._add_module(fullname)
         return mod
 
