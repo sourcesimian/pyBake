@@ -2,28 +2,30 @@
 _ = ''
 # -- inline cut --
 import binascii, json, zlib
-_ = json.loads(zlib.decompress(binascii.a2b_base64(_))); exec(_[0])
+_ = json.loads(zlib.decompress(binascii.a2b_base64(_))); exec(_[0], globals())
 # -- execable cut --
-import imp
+import types
 import sys
 
-sys.modules.setdefault('pybake', imp.new_module('pybake'))
+
+sys.modules.setdefault('pybake', types.ModuleType('pybake'))
 
 for name in _[1]:
     mod = sys.modules.setdefault('pybake.%s' % name,
-                                 imp.new_module('pybake.%s' % name))
+                                 types.ModuleType('pybake.%s' % name))
+
     format, content = _[2]['pybake'][name + '.py']
     if format == 'base64':
         content = binascii.a2b_base64(content)
-    exec compile(content,
-                 sys.argv[0] + '/pybake/%s' % name + '.py',
-                 'exec') in mod.__dict__
+    exec(compile(content,
+                 __file__ + '/pybake/%s' % name + '.py',
+                 'exec'), mod.__dict__)
 
 from pybake.dictfilesystem import DictFileSystem
 from pybake.abstractimporter import AbstractImporter
 
-reader = DictFileSystem(sys.argv[0], _[2])
-importer = AbstractImporter(sys.argv[0], reader)
+reader = DictFileSystem(__file__, _[2])
+importer = AbstractImporter(__file__, reader)
 importer.install()
 
 from pybake.dictfilesysteminterceptor import DictFileSystemInterceptor
@@ -35,7 +37,7 @@ BlobServer.check_run()
 
 del binascii, json, zlib
 del _
-del imp, sys
+del types, sys
 del name, mod, format, content
 del DictFileSystem, AbstractImporter, DictFileSystemInterceptor, BlobServer
 del reader, importer, filesystem

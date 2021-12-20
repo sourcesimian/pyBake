@@ -16,6 +16,8 @@ class DictFileSystemBuilder(object):
 
             if module.__package__ is not None:
                 package = tuple(module.__package__.split('.'))
+            else:
+                package = tuple(module.__name__.split('.'))
         elif os.path.exists(module):
             if os.path.isfile(module):
                 basedir = os.path.dirname(module)

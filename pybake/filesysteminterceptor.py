@@ -1,3 +1,9 @@
+import sys
+
+if sys.version_info[0] == 3:
+    BUILTINS_OPEN = 'builtins.open'
+else:
+    BUILTINS_OPEN = '__builtin__.open'
 
 
 class FileSystemInterceptor(object):
@@ -27,7 +33,7 @@ class FileSystemInterceptor(object):
                 pass
 
     def uninstall(self):
-        for fullpath, oldhook in self._oldhooks.items():
+        for fullpath, oldhook in list(self._oldhooks.items()):
             self._oldhooks[fullpath] = self._hook(fullpath, oldhook)
 
     @classmethod

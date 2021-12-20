@@ -1,15 +1,11 @@
 
+
 develop:
-	virtualenv --no-site-packages --python /usr/bin/python2.7 virtualenv
-	{ \
-	    . ./virtualenv/bin/activate; \
-	    curl https://bootstrap.pypa.io/get-pip.py | python; \
-	    pip install pytest flake8; \
-	}
+	python3 -m venv venv
 
 
 clean:
-	git clean -dfx
+	git clean -dfxn | grep 'Would remove' | awk '{print $3}' | grep -v -e '^.idea' -e '^.cache' | xargs rm -rf
 
 
 check:
@@ -20,11 +16,11 @@ test:
 	pytest ./tests/ -vvv --junitxml=./reports/unittest-results.xml
 
 
-to_pypi_test:
-	python setup.py register -r pypitest
-	python setup.py sdist upload -r pypitest
+to_pypi_test: test
+	python -m build
+	twine upload -r testpypi dist/*
 
 
-to_pypi_live:
-	python setup.py register -r pypi
-	python setup.py sdist upload -r pypi
+to_pypi_live: test
+	python -m build
+	twine upload dist/*

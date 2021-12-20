@@ -19,8 +19,7 @@ class BlobServer(object):
             port = address
         port = int(port)
 
-        from SimpleHTTPServer import SimpleHTTPRequestHandler
-        from BaseHTTPServer import HTTPServer
+        from http.server import SimpleHTTPRequestHandler, HTTPServer
 
         class Server(HTTPServer):
             def __init__(self, *args, **kwargs):

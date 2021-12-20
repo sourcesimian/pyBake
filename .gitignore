@@ -1,7 +1,9 @@
 *.pyc
 .idea/
-.cache/
+.cache*/
 reports/
 dist/
 pybake.egg-info/
 virtualenv/
+venv/
+.pytest_cache/

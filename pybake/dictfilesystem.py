@@ -8,7 +8,7 @@ class DictFileSystem(object):
 
     def __init__(self, base_dir=None, dict_tree=None):
         self._base_dir = self._normalise_path(base_dir or '/pybake/root')
-        self._dict_tree = dict_tree or {}
+        self._dict_tree = {} if dict_tree is None else dict_tree
         try:
             self._base_stat = os.stat(self._base_dir)
         except OSError:
@@ -17,7 +17,7 @@ class DictFileSystem(object):
     def tpath(self, path):
         path = self._normalise_path(path)
         try:
-            if isinstance(path, basestring) and path.startswith(self._base_dir):
+            if isinstance(path, str) and path.startswith(self._base_dir):
                 subpath = path[len(self._base_dir):]
                 # if not subpath:
                 #     return None
@@ -52,7 +52,7 @@ class DictFileSystem(object):
         raise IOError(errno.ENOENT, "No such file or directory", '%s/%s' % (self._base_dir, os.sep.join(tpath)))
 
     def listdir(self, tpath):
-        return self._get_node(tpath).keys()
+        return sorted(self._get_node(tpath).keys())
 
     def read(self, tpath):
         type, content = self._get_node(tpath)
@@ -105,7 +105,9 @@ class DictFileSystem(object):
 
     def get_dict_tree(self):
         def encode(type, content):
-            return ('base64', binascii.b2a_base64(content))
+            if isinstance(content, str):
+                content = content.encode('utf-8')
+            return ('base64', binascii.b2a_base64(content).decode('utf-8'))
             # try:
             #     content.decode('ascii')
             #     return ('raw', content)
@@ -121,7 +123,8 @@ class DictFileSystem(object):
                     dst[key] = encode(*src[key])
             return dst
 
-        return walk(self._dict_tree)
+        tree = walk(self._dict_tree)
+        return tree
 
     @staticmethod
     def _normalise_path(filename):
