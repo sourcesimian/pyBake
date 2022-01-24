@@ -5,6 +5,7 @@ PyBake <!-- omit in toc -->
 
 - [Purpose](#purpose)
 - [Usage](#usage)
+  - [Install](#install)
   - [Bake Script](#bake-script)
 - [Advanced](#advanced)
   - [Tracebacks](#tracebacks)
@@ -19,16 +20,22 @@ PyBake can bundle an entire Python project including modules and data files into
 PyBakes just run and don't need an installation so are a great way of rapidly distributing tooling or utility scripts, yet the development can still be done using a formal module hierarchy.
 
 The intention of PyBake is to be lightweight and to remain pure Python. There are several other "standalone executable" Python projects, with differing options and capabilities:
+* [pex](https://pex.readthedocs.io/)
+* [shiv](https://shiv.readthedocs.io/)
+* [zipapp](https://docs.python.org/3/library/zipapp.html)
 * [PyInstaller](https://www.pyinstaller.org/)
 * [py2exe](https://www.py2exe.org/)
 * [cx_Freeze](https://marcelotduarte.github.io/cx_Freeze)
 * [py2app](https://github.com/ronaldoussoren/py2app/blob/master/README.rst)
 
 
-
-
 # Usage
 The current usage idiom is to create a bake script that is run when you wish to produce a release of your utility.
+## Install
+```
+pip install pyBake
+```
+
 ## Bake Script
 This bake script includes an optional header to provide version information and setup instructions. The footer is used to invoke the desired entry point. The footer can be
 omitted should you wish your PyBake to simply act as a module that can be imported into other scripts, e.g.:
